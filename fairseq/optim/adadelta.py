@@ -5,11 +5,11 @@
 
 import torch.optim
 
-from . import FairseqOptimizer, register_optimizer
+from . import register_optimizer, LegacyFairseqOptimizer
 
 
 @register_optimizer('adadelta')
-class Adadelta(FairseqOptimizer):
+class Adadelta(LegacyFairseqOptimizer):
     def __init__(self, args, params):
         super().__init__(args)
         self._optimizer = torch.optim.Adadelta(params, **self.optimizer_config)
@@ -41,3 +41,7 @@ class Adadelta(FairseqOptimizer):
             'eps': self.args.adadelta_eps,
             'weight_decay': self.args.weight_decay,
         }
+
+    @property
+    def supports_flat_params(self):
+        return True

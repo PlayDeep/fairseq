@@ -11,7 +11,7 @@ This model uses a `Byte Pair Encoding (BPE)
 vocabulary <https://arxiv.org/abs/1508.07909>`__, so we'll have to apply
 the encoding to the source text before it can be translated. This can be
 done with the
-`apply\_bpe.py <https://github.com/rsennrich/subword-nmt/blob/master/apply_bpe.py>`__
+`apply\_bpe.py <https://github.com/rsennrich/subword-nmt/blob/master/subword_nmt/apply_bpe.py>`__
 script using the ``wmt14.en-fr.fconv-cuda/bpecodes`` file. ``@@`` is
 used as a continuation marker and the original text can be easily
 recovered with e.g. ``sed s/@@ //g`` or by passing the ``--remove-bpe``
@@ -46,6 +46,9 @@ with *O* is a copy of the original source sentence; *H* is the
 hypothesis along with an average log-likelihood; and *P* is the
 positional score per token position, including the
 end-of-sentence marker which is omitted from the text.
+
+Other types of output lines you might see are *D*, the detokenized hypothesis,
+*T*, the reference target, *A*, alignment info, *E* the history of generation steps.
 
 See the `README <https://github.com/pytorch/fairseq#pre-trained-models>`__ for a
 full list of pre-trained models available.
@@ -158,14 +161,6 @@ Fairseq supports FP16 training with the ``--fp16`` flag:
 
     > fairseq-train --fp16 (...)
 
-Lazily loading large training datasets
---------------------------------------
-
-By default fairseq loads the entire training set into system memory. For large
-datasets, the ``--lazy-load`` option can be used to instead load batches on-demand.
-For optimal performance, use the ``--num-workers`` option to control the number
-of background processes that will load batches.
-
 Distributed training
 --------------------
 
@@ -189,4 +184,23 @@ replacing ``node_rank=0`` with ``node_rank=1`` on the second node:
         --lr 0.0005 --min-lr 1e-09 \
         --dropout 0.3 --weight-decay 0.0 --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
         --max-tokens 3584 \
-        --fp16
+        --fp16  --distributed-no-spawn 
+
+Sharding very large datasets
+----------------------------
+
+It can be challenging to train over very large datasets, particularly if your
+machine does not have much system RAM. Most tasks in fairseq support training
+over "sharded" datasets, in which the original dataset has been preprocessed
+into non-overlapping chunks (or "shards").
+
+For example, instead of preprocessing all your data into a single "data-bin"
+directory, you can split the data and create "data-bin1", "data-bin2", etc.
+Then you can adapt your training command like so:
+
+.. code-block:: console
+
+    > fairseq-train data-bin1:data-bin2:data-bin3 (...)
+
+Training will now iterate over each shard, one by one, with each shard
+corresponding to an "epoch", thus reducing system memory usage.

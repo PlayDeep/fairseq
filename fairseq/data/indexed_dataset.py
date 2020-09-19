@@ -12,6 +12,8 @@ import numpy as np
 import torch
 
 from . import FairseqDataset
+from fairseq.data.fasta_dataset import FastaDataset
+from fairseq.file_io import PathManager
 
 
 def __best_fitting_dtype(vocab_size=None):
@@ -22,7 +24,7 @@ def __best_fitting_dtype(vocab_size=None):
 
 
 def get_available_dataset_impl():
-    return ['raw', 'lazy', 'cached', 'mmap']
+    return ['raw', 'lazy', 'cached', 'mmap', 'fasta']
 
 
 def infer_dataset_impl(path):
@@ -37,6 +39,8 @@ def infer_dataset_impl(path):
                 return 'mmap'
             else:
                 return None
+    elif FastaDataset.exists(path):
+        return 'fasta'
     else:
         return None
 
@@ -44,6 +48,8 @@ def infer_dataset_impl(path):
 def make_builder(out_file, impl, vocab_size=None):
     if impl == 'mmap':
         return MMapIndexedDatasetBuilder(out_file, dtype=__best_fitting_dtype(vocab_size))
+    elif impl == 'fasta':
+        raise NotImplementedError
     else:
         return IndexedDatasetBuilder(out_file)
 
@@ -58,6 +64,9 @@ def make_dataset(path, impl, fix_lua_indexing=False, dictionary=None):
         return IndexedCachedDataset(path, fix_lua_indexing=fix_lua_indexing)
     elif impl == 'mmap' and MMapIndexedDataset.exists(path):
         return MMapIndexedDataset(path)
+    elif impl == 'fasta' and FastaDataset.exists(path):
+        from fairseq.data.fasta_dataset import EncodedFastaDataset
+        return EncodedFastaDataset(path, dictionary)
     return None
 
 
@@ -171,7 +180,7 @@ class IndexedDataset(FairseqDataset):
     @staticmethod
     def exists(path):
         return (
-            os.path.exists(index_file_path(path)) and os.path.exists(data_file_path(path))
+            PathManager.exists(index_file_path(path)) and PathManager.exists(data_file_path(path))
         )
 
     @property
@@ -279,7 +288,7 @@ class IndexedRawTextDataset(FairseqDataset):
 
     @staticmethod
     def exists(path):
-        return os.path.exists(path)
+        return PathManager.exists(path)
 
 
 class IndexedDatasetBuilder(object):
@@ -489,8 +498,21 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
     @staticmethod
     def exists(path):
         return (
-            os.path.exists(index_file_path(path)) and os.path.exists(data_file_path(path))
+            PathManager.exists(index_file_path(path)) and PathManager.exists(data_file_path(path))
         )
+
+
+def get_indexed_dataset_to_local(path):
+    local_index_path = PathManager.get_local_path(index_file_path(path))
+    local_data_path = PathManager.get_local_path(data_file_path(path))
+
+    assert local_index_path.endswith(".idx") and local_data_path.endswith(".bin"), \
+           "PathManager.get_local_path does not return files with expected patterns: " \
+           f"{local_index_path} and {local_data_path}"
+
+    local_path = local_data_path[:-4]  # stripping surfix ".bin"
+    assert local_path == local_index_path[:-4]  # stripping surfix ".idx"
+    return local_path
 
 
 class MMapIndexedDatasetBuilder(object):

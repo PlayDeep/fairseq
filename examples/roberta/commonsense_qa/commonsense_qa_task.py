@@ -22,11 +22,11 @@ from fairseq.data import (
     RightPadDataset,
     SortDataset,
 )
-from fairseq.tasks import FairseqTask, register_task
+from fairseq.tasks import register_task, LegacyFairseqTask
 
 
 @register_task('commonsense_qa')
-class CommonsenseQATask(FairseqTask):
+class CommonsenseQATask(LegacyFairseqTask):
     """Task to finetune RoBERTa for Commonsense QA."""
 
     @staticmethod
@@ -66,7 +66,7 @@ class CommonsenseQATask(FairseqTask):
 
         return cls(args, vocab)
 
-    def load_dataset(self, split, epoch=0, combine=False, data_path=None, return_only=False, **kwargs):
+    def load_dataset(self, split, epoch=1, combine=False, data_path=None, return_only=False, **kwargs):
         """Load a given dataset split.
 
         Args:

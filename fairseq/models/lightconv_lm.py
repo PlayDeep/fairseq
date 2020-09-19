@@ -3,7 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from fairseq import options
+from fairseq import utils
 from fairseq.models import (
     FairseqLanguageModel,
     register_model,
@@ -83,14 +83,14 @@ class LightConvLanguageModel(FairseqLanguageModel):
                             help='use learned positional embeddings in the decoder')
 
         """LightConv and DynamicConv arguments"""
-        parser.add_argument('--decoder-kernel-size-list', type=lambda x: options.eval_str_list(x, int),
+        parser.add_argument('--decoder-kernel-size-list', type=lambda x: utils.eval_str_list(x, int),
                             help='list of kernel size (default: "[3,7,15,31,31,31]")')
-        parser.add_argument('--decoder-glu', type=options.eval_bool,
+        parser.add_argument('--decoder-glu', type=utils.eval_bool,
                             help='glu after in proj')
         parser.add_argument('--decoder-conv-type', default='dynamic', type=str,
                             choices=['dynamic', 'lightweight'],
                             help='type of convolution')
-        parser.add_argument('--weight-softmax', default=True, type=options.eval_bool)
+        parser.add_argument('--weight-softmax', default=True, type=utils.eval_bool)
         parser.add_argument('--weight-dropout', type=float, metavar='D',
                             help='dropout probability for conv weights')
 
@@ -101,9 +101,9 @@ class LightConvLanguageModel(FairseqLanguageModel):
         # make sure all arguments are present in older models
         base_lm_architecture(args)
 
-        if not hasattr(args, 'max_source_positions'):
+        if getattr(args, 'max_source_positions', None) is None:
             args.max_source_positions = args.tokens_per_sample
-        if not hasattr(args, 'max_target_positions'):
+        if getattr(args, 'max_target_positions', None) is None:
             args.max_target_positions = args.tokens_per_sample
 
         if args.character_embeddings:
@@ -115,7 +115,7 @@ class LightConvLanguageModel(FairseqLanguageModel):
         elif args.adaptive_input:
             embed_tokens = AdaptiveInput(len(task.dictionary), task.dictionary.pad(), args.decoder_input_dim,
                                          args.adaptive_input_factor, args.decoder_embed_dim,
-                                         options.eval_str_list(args.adaptive_input_cutoff, type=int))
+                                         utils.eval_str_list(args.adaptive_input_cutoff, type=int))
         else:
             embed_tokens = Embedding(len(task.dictionary), args.decoder_input_dim, task.dictionary.pad())
 
@@ -145,6 +145,7 @@ def base_lm_architecture(args):
 
     args.decoder_output_dim = getattr(args, 'decoder_output_dim', args.decoder_embed_dim)
     args.decoder_input_dim = getattr(args, 'decoder_input_dim', args.decoder_embed_dim)
+    args.decoder_conv_dim = getattr(args, 'decoder_conv_dim', args.decoder_embed_dim)
 
     # The model training is not stable without this
     args.decoder_normalize_before = True
@@ -159,6 +160,10 @@ def base_lm_architecture(args):
     args.decoder_kernel_size_list = getattr(args, 'decoder_kernel_size_list', [3, 7, 15, 31, 31, 31])
     if len(args.decoder_kernel_size_list) == 1:
         args.decoder_kernel_size_list = args.decoder_kernel_size_list * args.decoder_layers
+    assert len(args.decoder_kernel_size_list) == args.decoder_layers, "decoder_kernel_size_list doesn't match decoder_layers"
+    args.decoder_glu = getattr(args, 'decoder_glu', True)
+    args.input_dropout = getattr(args, 'input_dropout', 0.1)
+    args.weight_dropout = getattr(args, 'weight_dropout', args.attention_dropout)
 
 
 @register_model_architecture('lightconv_lm', 'lightconv_lm_gbw')
